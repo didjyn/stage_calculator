@@ -314,36 +314,6 @@
   const canvas = document.getElementById('stage');
   const ctx = canvas.getContext('2d');
 
-  function fitStageToView() {
-    if (!canvas.width || !canvas.height) return;
-    const cellPx = MODULE_MM * 0.1;
-    const gridW = COLS * cellPx;
-    const gridH = ROWS * cellPx;
-    const padding = 40;
-
-    const availW = Math.max(100, canvas.width - padding * 2);
-    const availH = Math.max(100, canvas.height - padding * 2);
-
-    const fitScale = Math.min(availW / gridW, availH / gridH);
-    scale = Math.min(Math.max(fitScale, 0.05), 3.0);
-
-    offsetX = (canvas.width - gridW * scale) / 2;
-    offsetY = (canvas.height - gridH * scale) / 2;
-  }
-
-  function resizeCanvas() {
-    const rect = container.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    
-    // Set display size and physical resolution to match element width/height perfectly without stretching
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-
-    fitStageToView();
-    render();
-  }
-  window.addEventListener('resize', resizeCanvas);
-
   const MODULE_MM = 910;
   let stageWidthMm = 29000;
   let stageHeightMm = 20000;
@@ -354,6 +324,59 @@
   let grid = Array.from({ length: COLS }, () => Array(ROWS).fill(null));
 
   let selectedHeightVal = 500;
+  let scale = 0.25;
+  let offsetX = 40;
+  let offsetY = 40;
+
+  let currentColor = 'orange';
+  let isPointerDown = false;
+  let isRightClick = false;
+  let isPanning = false;
+  let isSpacePressed = false;
+  let startPanX = 0;
+  let startPanY = 0;
+
+  let startGridPos = null;
+  let currentDragBox = null;
+
+  let lastTouchMidX = 0;
+  let lastTouchMidY = 0;
+  let initialPinchDistance = null;
+
+  function fitStageToView() {
+    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+    const stagePixelW = COLS * MODULE_MM * 0.1;
+    const stagePixelH = ROWS * MODULE_MM * 0.1;
+    const padding = 40;
+
+    const availW = container.clientWidth - padding * 2;
+    const availH = container.clientHeight - padding * 2;
+
+    if (availW <= 0 || availH <= 0) return;
+
+    scale = Math.min(availW / stagePixelW, availH / stagePixelH);
+    scale = Math.max(0.05, Math.min(scale, 3.0));
+
+    offsetX = (container.clientWidth - stagePixelW * scale) / 2;
+    offsetY = (container.clientHeight - stagePixelH * scale) / 2;
+  }
+
+  function resizeCanvas() {
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    
+    // Internal canvas resolution matching CSS size
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    
+    // Use DPR scaling for high-DPI displays
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    
+    fitStageToView();
+    render();
+  }
+
+  window.addEventListener('resize', resizeCanvas);
 
   function setStageHeight(hVal, btnEl) {
     selectedHeightVal = hVal;
@@ -387,39 +410,8 @@
     render();
   }
 
-  window.addEventListener('resize', () => resizeCanvas(false));
-  window.addEventListener('orientationchange', () => setTimeout(() => resizeCanvas(true), 150));
-
-  function setStageHeight(hVal, btnEl) {
-    selectedHeightVal = hVal;
-    document.querySelectorAll('#heightGrid .height-btn').forEach(btn => btn.classList.remove('active'));
-    if (btnEl) btnEl.classList.add('active');
-    render();
-  }
-
-  function setCanvasSize(widthMm, heightMm, btnEl) {
-    if (stageWidthMm === widthMm && stageHeightMm === heightMm) return;
-
-    let hasData = grid.some(row => row.some(cell => cell !== null));
-    if (hasData) {
-      if (!confirm('작업화면 크기를 변경하면 기존에 배치된 상판이 초기화됩니다. 변경하시겠습니까?')) {
-        return;
-      }
-    }
-
-    stageWidthMm = widthMm;
-    stageHeightMm = heightMm;
-    COLS = Math.ceil(stageWidthMm / MODULE_MM);
-    ROWS = Math.ceil(stageHeightMm / MODULE_MM);
-
-    grid = Array.from({ length: COLS }, () => Array(ROWS).fill(null));
-    historyStack = [];
-
-    document.querySelectorAll('#areaGrid .area-btn').forEach(btn => btn.classList.remove('active'));
-    if (btnEl) btnEl.classList.add('active');
-
-    fitStageToView();
-  }
+  let historyStack = [];
+  const MAX_HISTORY = 20;
 
   function saveState() {
     if (historyStack.length >= MAX_HISTORY) historyStack.shift();
@@ -432,6 +424,14 @@
       render();
     }
   }
+
+  const colorStyles = {
+    orange: { fill: 'rgba(255, 153, 0, 0.85)', stroke: '#b35900' },
+    blue:   { fill: 'rgba(0, 123, 255, 0.85)', stroke: '#003d80' },
+    yellow: { fill: 'rgba(255, 193, 7, 0.85)',  stroke: '#b78103' },
+    green:  { fill: 'rgba(40, 167, 69, 0.85)',  stroke: '#1e7e34' },
+    red:    { fill: 'rgba(220, 53, 69, 0.85)',  stroke: '#84121d' }
+  };
 
   function setColor(color) {
     currentColor = color;
@@ -555,8 +555,9 @@
       const t2 = e.touches[1];
 
       initialPinchDistance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      lastTouchMidX = (t1.clientX + t2.clientX) / 2;
-      lastTouchMidY = (t1.clientY + t2.clientY) / 2;
+      lastTouchMidX = (t1.clientX + t2.clientX) / 2 - rect.left;
+      lastTouchMidY = (t1.clientY + t2.clientY) / 2 - rect.top;
+      render();
     }
   }, { passive: false });
 
@@ -574,8 +575,8 @@
       const t1 = e.touches[0];
       const t2 = e.touches[1];
 
-      const currentMidX = (t1.clientX + t2.clientX) / 2;
-      const currentMidY = (t1.clientY + t2.clientY) / 2;
+      const currentMidX = (t1.clientX + t2.clientX) / 2 - rect.left;
+      const currentMidY = (t1.clientY + t2.clientY) / 2 - rect.top;
       const currentDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
 
       const deltaX = currentMidX - lastTouchMidX;
@@ -585,7 +586,7 @@
 
       if (initialPinchDistance && initialPinchDistance > 0) {
         const factor = currentDist / initialPinchDistance;
-        zoomAt(currentMidX, currentMidY, factor);
+        zoomAt(currentMidX + rect.left, currentMidY + rect.top, factor);
       }
 
       lastTouchMidX = currentMidX;
@@ -673,17 +674,19 @@
 
   function render() {
     const dpr = window.devicePixelRatio || 1;
+    
+    // Always reset matrix and clear complete buffer to prevent scaled duplicate artifacts
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
+    // Apply device pixel ratio and pan/zoom transform
     ctx.save();
-    // DPR 스케일링으로 선명한 고해상도 그래픽 보정
     ctx.scale(dpr, dpr);
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
     const cellPx = MODULE_MM * 0.1;
 
-    // 격자 그리기 (1:1 정사각형)
     for (let c = 0; c < COLS; c++) {
       for (let r = 0; r < ROWS; r++) {
         const x = c * cellPx;
@@ -696,7 +699,6 @@
       }
     }
 
-    // 중앙점 점선 가이드라인
     const totalW = COLS * cellPx;
     const totalH = ROWS * cellPx;
     ctx.strokeStyle = '#888888';
@@ -755,7 +757,6 @@
       }
     }
 
-    // 드래그 선택 박스
     if (isPointerDown && currentDragBox) {
       const { minC, maxC, minR, maxR } = currentDragBox;
       const x = minC * cellPx;
