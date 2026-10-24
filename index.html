@@ -5,28 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>무대 상판 및 부자재 산출 계산기</title>
   <style>
-    * { 
-      box-sizing: border-box; 
-      -webkit-tap-highlight-color: transparent;
-    }
+    * { box-sizing: border-box; }
     html, body {
       margin: 0;
       padding: 0;
-      width: 100%;
       height: 100%;
+      width: 100%;
       overflow: hidden;
-      background: #f4f4f9;
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
     }
     
     body { 
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; 
       display: flex; 
       flex-direction: column; 
       padding: 10px; 
       gap: 10px;
+      background: #f4f4f9; 
     }
     
-    /* 1. 모바일 세로모드 (Portrait): 상단 50% 고정 작업영역 + 하단 50% 스크롤 패널 */
+    /* 1. 모바일 세로모드 (Portrait): 상단 절반 고정 + 하단 스크롤 */
     #canvas-container { 
       background: #1e1e1e; 
       border: 2px solid #333; 
@@ -34,18 +31,11 @@
       overflow: hidden;
       border-radius: 8px;
       width: 100%;
-      height: calc(50dvh - 15px);
+      height: 50vh; /* 상단 절반 고정 */
       flex-shrink: 0;
       touch-action: none;
     }
-    
-    canvas { 
-      cursor: crosshair; 
-      display: block; 
-      width: 100%; 
-      height: 100%; 
-      touch-action: none; 
-    }
+    canvas { cursor: crosshair; display: block; width: 100%; height: 100%; touch-action: none; }
 
     .panel { 
       background: #fff; 
@@ -53,12 +43,12 @@
       border-radius: 8px; 
       box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
       flex: 1;
-      height: calc(50dvh - 15px);
+      height: calc(50vh - 30px);
       overflow-y: auto; 
       -webkit-overflow-scrolling: touch;
     }
 
-    /* 2. 모바일 가로모드 (Landscape): 좌측 60% 고정 작업영역 + 우측 40% 스크롤 패널 */
+    /* 2. 모바일 가로모드 (Landscape): 좌측 3/5 (60%) 전체 영역 보임 + 우측 2/5 (40%) 스크롤 */
     @media (orientation: landscape) and (max-width: 899px), (orientation: landscape) and (max-height: 500px) {
       body {
         flex-direction: row;
@@ -66,14 +56,14 @@
         gap: 10px;
       }
       #canvas-container {
-        width: 60%;
-        height: calc(100dvh - 20px);
+        width: 60%; /* 좌측 3/5 */
+        height: calc(100vh - 20px);
         flex-shrink: 0;
       }
       .panel {
-        width: 40%;
-        height: calc(100dvh - 20px);
-        max-height: calc(100dvh - 20px);
+        width: 40%; /* 우측 2/5 */
+        height: calc(100vh - 20px);
+        max-height: calc(100vh - 20px);
         flex: none;
       }
     }
@@ -324,6 +314,36 @@
   const canvas = document.getElementById('stage');
   const ctx = canvas.getContext('2d');
 
+  function fitStageToView() {
+    if (!canvas.width || !canvas.height) return;
+    const cellPx = MODULE_MM * 0.1;
+    const gridW = COLS * cellPx;
+    const gridH = ROWS * cellPx;
+    const padding = 40;
+
+    const availW = Math.max(100, canvas.width - padding * 2);
+    const availH = Math.max(100, canvas.height - padding * 2);
+
+    const fitScale = Math.min(availW / gridW, availH / gridH);
+    scale = Math.min(Math.max(fitScale, 0.05), 3.0);
+
+    offsetX = (canvas.width - gridW * scale) / 2;
+    offsetY = (canvas.height - gridH * scale) / 2;
+  }
+
+  function resizeCanvas() {
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    
+    // Set display size and physical resolution to match element width/height perfectly without stretching
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    fitStageToView();
+    render();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
   const MODULE_MM = 910;
   let stageWidthMm = 29000;
   let stageHeightMm = 20000;
@@ -334,73 +354,36 @@
   let grid = Array.from({ length: COLS }, () => Array(ROWS).fill(null));
 
   let selectedHeightVal = 500;
-  let scale = 0.25;
-  let offsetX = 20;
-  let offsetY = 20;
 
-  let currentColor = 'orange';
-  let isPointerDown = false;
-  let isRightClick = false;
-  let isPanning = false;
-  let isSpacePressed = false;
-  let startPanX = 0;
-  let startPanY = 0;
-
-  let startGridPos = null;
-  let currentDragBox = null;
-
-  let lastTouchMidX = 0;
-  let lastTouchMidY = 0;
-  let initialPinchDistance = null;
-
-  let historyStack = [];
-  const MAX_HISTORY = 20;
-
-  const colorStyles = {
-    orange: { fill: 'rgba(255, 153, 0, 0.85)', stroke: '#b35900' },
-    blue:   { fill: 'rgba(0, 123, 255, 0.85)', stroke: '#003d80' },
-    yellow: { fill: 'rgba(255, 193, 7, 0.85)',  stroke: '#b78103' },
-    green:  { fill: 'rgba(40, 167, 69, 0.85)',  stroke: '#1e7e34' },
-    red:    { fill: 'rgba(220, 53, 69, 0.85)',  stroke: '#84121d' }
-  };
-
-  // 캔버스 버퍼 및 뷰포트 비율 보정 (가로 세로 압축 방지)
-  function resizeCanvas(shouldAutoFit = false) {
-    const dpr = window.devicePixelRatio || 1;
-    const displayWidth = container.clientWidth;
-    const displayHeight = container.clientHeight;
-
-    if (canvas.width !== displayWidth * dpr || canvas.height !== displayHeight * dpr) {
-      canvas.width = displayWidth * dpr;
-      canvas.height = displayHeight * dpr;
-    }
-
-    if (shouldAutoFit || scale === 0.25) {
-      fitStageToView();
-    } else {
-      render();
-    }
+  function setStageHeight(hVal, btnEl) {
+    selectedHeightVal = hVal;
+    document.querySelectorAll('#heightGrid .height-btn').forEach(btn => btn.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    render();
   }
 
-  function fitStageToView() {
-    const displayWidth = container.clientWidth;
-    const displayHeight = container.clientHeight;
+  function setCanvasSize(widthMm, heightMm, btnEl) {
+    if (stageWidthMm === widthMm && stageHeightMm === heightMm) return;
 
-    if (!displayWidth || !displayHeight) return;
+    let hasData = grid.some(row => row.some(cell => cell !== null));
+    if (hasData) {
+      if (!confirm('작업화면 크기를 변경하면 기존에 배치된 상판이 초기화됩니다. 변경하시겠습니까?')) {
+        return;
+      }
+    }
 
-    const totalGridWidthPx = COLS * (MODULE_MM * 0.1);
-    const totalGridHeightPx = ROWS * (MODULE_MM * 0.1);
+    stageWidthMm = widthMm;
+    stageHeightMm = heightMm;
+    COLS = Math.ceil(stageWidthMm / MODULE_MM);
+    ROWS = Math.ceil(stageHeightMm / MODULE_MM);
 
-    const margin = 30;
-    const scaleX = (displayWidth - margin * 2) / totalGridWidthPx;
-    const scaleY = (displayHeight - margin * 2) / totalGridHeightPx;
+    grid = Array.from({ length: COLS }, () => Array(ROWS).fill(null));
+    historyStack = [];
 
-    scale = Math.min(scaleX, scaleY);
-    scale = Math.max(0.05, Math.min(scale, 2.0));
+    document.querySelectorAll('#areaGrid .area-btn').forEach(btn => btn.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
 
-    offsetX = (displayWidth - totalGridWidthPx * scale) / 2;
-    offsetY = (displayHeight - totalGridHeightPx * scale) / 2;
-
+    fitStageToView();
     render();
   }
 
