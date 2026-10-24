@@ -2,39 +2,99 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>무대 상판 및 부자재 산출 계산기</title>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; display: flex; flex-direction: column; gap: 15px; padding: 15px; background: #f4f4f9; margin: 0; min-height: 100vh; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background: #f4f4f9;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    }
     
-    /* 데스크톱 (넓은 화면) 레이아웃 */
-    @media (min-width: 900px) {
-      body { flex-direction: row; }
-      #canvas-container { flex: 1; height: calc(100vh - 30px); }
-      .panel { width: 400px; max-height: calc(100vh - 30px); }
+    body { 
+      display: flex; 
+      flex-direction: column; 
+      padding: 10px; 
+      gap: 10px;
     }
-
-    /* 모바일 가로모드 (Landscape) 레이아웃 추가 */
-    @media (max-width: 899px) and (orientation: landscape), (max-height: 500px) and (orientation: landscape) {
-      body { flex-direction: row; gap: 10px; padding: 10px; height: 100vh; overflow: hidden; }
-      #canvas-container { flex: 1; height: calc(100vh - 20px); width: 50%; }
-      .panel { width: 50%; max-height: calc(100vh - 20px); padding: 12px; }
-    }
-
+    
+    /* 1. 모바일 세로모드 (Portrait): 상단 50% 고정 + 하단 50% 독립 스크롤 */
     #canvas-container { 
       background: #1e1e1e; 
       border: 2px solid #333; 
       position: relative; 
       overflow: hidden;
       border-radius: 8px;
-      height: 60vh;
       width: 100%;
+      height: calc(50dvh - 15px);
+      flex: 0 0 calc(50dvh - 15px);
       touch-action: none;
     }
-    canvas { cursor: crosshair; display: block; width: 100%; height: 100%; touch-action: none; }
+    canvas { 
+      cursor: crosshair; 
+      display: block; 
+      width: 100%; 
+      height: 100%; 
+      touch-action: none; 
+    }
 
-    .panel { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); overflow-y: auto; }
+    .panel { 
+      background: #fff; 
+      padding: 16px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+      flex: 1;
+      height: calc(50dvh - 15px);
+      overflow-y: auto; 
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* 2. 모바일 가로모드 (Landscape): 좌측 3/5 (60%) 고정 + 우측 2/5 (40%) 독립 스크롤 */
+    @media (orientation: landscape) and (max-width: 899px), (orientation: landscape) and (max-height: 500px) {
+      body {
+        flex-direction: row;
+        padding: 10px;
+        gap: 10px;
+      }
+      #canvas-container {
+        width: calc(60% - 5px);
+        flex: 0 0 calc(60% - 5px);
+        height: calc(100dvh - 20px);
+      }
+      .panel {
+        width: calc(40% - 5px);
+        flex: 0 0 calc(40% - 5px);
+        height: calc(100dvh - 20px);
+        max-height: calc(100dvh - 20px);
+      }
+    }
+
+    /* 3. 데스크톱 (min-width: 900px & 가로) */
+    @media (min-width: 900px) and (orientation: landscape) {
+      body {
+        flex-direction: row;
+        padding: 15px;
+        gap: 15px;
+      }
+      #canvas-container {
+        flex: 1;
+        width: auto;
+        height: calc(100dvh - 30px);
+      }
+      .panel {
+        width: 380px;
+        height: calc(100dvh - 30px);
+        max-height: calc(100dvh - 30px);
+        flex: none;
+      }
+    }
+
     .field { margin-bottom: 15px; }
     label { display: block; font-size: 13px; font-weight: bold; color: #333; margin-bottom: 6px; }
 
@@ -175,7 +235,7 @@
 </div>
 
 <div class="panel">
-  <h3 style="margin-bottom: 12px; margin-top:0;">🎭 무대 상판 및 부자재 산출</h3>
+  <h3 style="margin-top: 0; margin-bottom: 12px;">🎭 무대 상판 및 부자재 산출</h3>
   
   <div class="field">
     <label>작업화면 영역 선택</label>
@@ -261,16 +321,6 @@
   const canvas = document.getElementById('stage');
   const ctx = canvas.getContext('2d');
 
-  function resizeCanvas() {
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
-    render();
-  }
-  window.addEventListener('resize', resizeCanvas);
-  window.addEventListener('orientationchange', () => {
-    setTimeout(resizeCanvas, 150);
-  });
-
   const MODULE_MM = 910;
   let stageWidthMm = 29000;
   let stageHeightMm = 20000;
@@ -281,6 +331,37 @@
   let grid = Array.from({ length: COLS }, () => Array(ROWS).fill(null));
 
   let selectedHeightVal = 500;
+  let scale = 0.25;
+  let offsetX = 20;
+  let offsetY = 20;
+  let isInitialFit = true;
+
+  function fitCanvasToView() {
+    const totalWorldW = COLS * (MODULE_MM * 0.1);
+    const totalWorldH = ROWS * (MODULE_MM * 0.1);
+    const padding = 20;
+    
+    const scaleX = (canvas.width - padding * 2) / totalWorldW;
+    const scaleY = (canvas.height - padding * 2) / totalWorldH;
+    
+    scale = Math.min(scaleX, scaleY);
+    if (scale < 0.05) scale = 0.05;
+    if (scale > 2.0) scale = 2.0;
+
+    offsetX = (canvas.width - totalWorldW * scale) / 2;
+    offsetY = (canvas.height - totalWorldH * scale) / 2;
+  }
+
+  function resizeCanvas() {
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+    if (isInitialFit) {
+      fitCanvasToView();
+      isInitialFit = false;
+    }
+    render();
+  }
+  window.addEventListener('resize', resizeCanvas);
 
   function setStageHeight(hVal, btnEl) {
     selectedHeightVal = hVal;
@@ -310,6 +391,7 @@
     document.querySelectorAll('#areaGrid .area-btn').forEach(btn => btn.classList.remove('active'));
     if (btnEl) btnEl.classList.add('active');
 
+    fitCanvasToView();
     render();
   }
 
@@ -327,10 +409,6 @@
       render();
     }
   }
-
-  let scale = 0.25;
-  let offsetX = 40;
-  let offsetY = 40;
 
   let currentColor = 'orange';
   let isPointerDown = false;
