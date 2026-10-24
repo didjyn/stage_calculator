@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>무대 상판 및 부자재 산출 계산기</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; display: flex; flex-direction: column; gap: 15px; padding: 15px; background: #f4f4f9; margin: 0; min-height: 100vh; }
+    
+    /* 데스크톱 (넓은 화면) 레이아웃 */
+    @media (min-width: 900px) {
+      body { flex-direction: row; }
+      #canvas-container { flex: 1; height: calc(100vh - 30px); }
+      .panel { width: 400px; max-height: calc(100vh - 30px); }
+    }
+
+    /* 모바일 가로모드 (Landscape) 레이아웃 추가 */
+    @media (max-width: 899px) and (orientation: landscape), (max-height: 500px) and (orientation: landscape) {
+      body { flex-direction: row; gap: 10px; padding: 10px; height: 100vh; overflow: hidden; }
+      #canvas-container { flex: 1; height: calc(100vh - 20px); width: 50%; }
+      .panel { width: 50%; max-height: calc(100vh - 20px); padding: 12px; }
+    }
+
+    #canvas-container { 
+      background: #1e1e1e; 
+      border: 2px solid #333; 
+      position: relative; 
+      overflow: hidden;
+      border-radius: 8px;
+      height: 60vh;
+      width: 100%;
+      touch-action: none;
+    }
+    canvas { cursor: crosshair; display: block; width: 100%; height: 100%; touch-action: none; }
+
+    .panel { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); overflow-y: auto; }
+    .field { margin-bottom: 15px; }
+    label { display: block; font-size: 13px; font-weight: bold; color: #333; margin-bottom: 6px; }
+
+    .area-btn-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .area-btn {
+      padding: 8px 4px;
+      border: 1px solid #007bff;
+      background: #f0f7ff;
+      color: #007bff;
+      font-size: 12px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+    .area-btn:hover { background: #e0effe; }
+    .area-btn.active {
+      background: #007bff;
+      color: #fff;
+      box-shadow: 0 2px 4px rgba(0,123,255,0.3);
+    }
+    
+    .height-btn-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+      margin-top: 6px;
+    }
+    .height-btn {
+      padding: 6px 2px;
+      border: 1px solid #28a745;
+      background: #f4fcf5;
+      color: #28a745;
+      font-size: 11px;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+    .height-btn:hover { background: #e2f8e5; }
+    .height-btn.active {
+      background: #28a745;
+      color: #fff;
+      box-shadow: 0 2px 4px rgba(40,167,69,0.3);
+    }
+
+    .key-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .key-btn {
+      display: flex;
+      align-items: center;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background: #f8f9fa;
+      color: #333;
+      font-size: 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+    .key-btn:hover { opacity: 0.85; }
+    .key-btn.active {
+      border-color: #000;
+      box-shadow: 0 0 0 2px #333;
+      font-weight: bold;
+    }
+    .key-badge {
+      display: inline-block;
+      padding: 2px 5px;
+      border-radius: 3px;
+      background: #333;
+      color: #fff;
+      font-family: monospace;
+      font-weight: bold;
+      margin-right: 6px;
+      font-size: 11px;
+    }
+    .color-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      display: inline-block;
+      margin-right: 6px;
+      border: 1px solid rgba(0,0,0,0.2);
+    }
+
+    .action-btn-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .btn-clear { background: #dc3545; color: white; border: none; cursor: pointer; font-weight: bold; flex: 1; padding: 10px; border-radius: 4px; font-size: 13px; }
+    .btn-clear:hover { background: #c82333; }
+    .btn-undo { background: #6c757d; color: white; border: none; cursor: pointer; font-weight: bold; flex: 1; padding: 10px; border-radius: 4px; font-size: 13px; }
+    .btn-undo:hover { background: #5a6268; }
+
+    .usage-guide {
+      background: #fff8e1;
+      border: 1px solid #ffe082;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #5d4037;
+      margin-top: 12px;
+      line-height: 1.5;
+    }
+    .usage-guide b { display: block; margin-bottom: 4px; color: #f57f17; }
+
+    .result { margin-top: 15px; padding-top: 15px; border-top: 2px dashed #eee; }
+    .result p { margin: 6px 0; font-size: 13px; }
+    .sub-result { background: #eef5ff; padding: 10px; border-radius: 6px; margin-top: 10px; border: 1px solid #cce5ff; }
+    .sub-result h4 { margin: 0 0 8px 0; color: #004085; font-size: 14px; }
+    .warning-text { color: #d9534f; font-weight: bold; font-size: 13px; margin-top: 4px; }
+    .highlight { color: #d9534f; font-weight: bold; font-size: 15px; border-top: 1px solid #eee; padding-top: 8px; margin-top: 8px; }
+    
+    .pin-detail { font-size: 13px; color: #222; font-weight: bold; margin-left: 8px; margin-top: 4px; }
+    .instructions { font-size: 12px; color: #666; margin-top: 15px; line-height: 1.5; background: #f8f9fa; padding: 10px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<div id="canvas-container">
+  <canvas id="stage"></canvas>
+</div>
+
+<div class="panel">
+  <h3 style="margin-bottom: 12px; margin-top:0;">🎭 무대 상판 및 부자재 산출</h3>
+  
+  <div class="field">
+    <label>작업화면 영역 선택</label>
+    <div class="area-btn-grid" id="areaGrid">
+      <div class="area-btn active" data-w="29000" data-h="20000" onclick="setCanvasSize(29000, 20000, this)">29m × 20m</div>
+      <div class="area-btn" data-w="40000" data-h="25000" onclick="setCanvasSize(40000, 25000, this)">40m × 25m</div>
+      <div class="area-btn" data-w="49000" data-h="29000" onclick="setCanvasSize(49000, 29000, this)">49m × 29m</div>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>상판 색상 선택 (드래그 시 선택한 색상으로 자동 규격 배치)</label>
+    <div class="key-grid" id="colorGrid">
+      <div class="key-btn active" data-color="orange" onclick="setColor('orange')"><span class="key-badge">1</span><span class="color-dot" style="background:#ff9900;"></span>주황 (기본)</div>
+      <div class="key-btn" data-color="blue" onclick="setColor('blue')"><span class="key-badge">2</span><span class="color-dot" style="background:#007bff;"></span>파랑</div>
+      <div class="key-btn" data-color="yellow" onclick="setColor('yellow')"><span class="key-badge">3</span><span class="color-dot" style="background:#ffc107;"></span>노랑</div>
+      <div class="key-btn" data-color="green" onclick="setColor('green')"><span class="key-badge">4</span><span class="color-dot" style="background:#28a745;"></span>연두</div>
+      <div class="key-btn" data-color="red" onclick="setColor('red')"><span class="key-badge">5</span><span class="color-dot" style="background:#dc3545;"></span>빨강</div>
+      <div class="key-btn" data-color="erase" onclick="setColor('erase')"><span class="key-badge">E</span><span class="color-dot" style="background:#333;"></span>삭제 모드</div>
+    </div>
+  </div>
+
+  <div class="usage-guide">
+    <b>📌 사용 방법</b>
+    1. 주황색을 기본으로 배치 후<br>
+    2. 가로, 세로 홀수 번째 칸을 파란색으로 배치<br>
+    3. 가로의 마지막이 짝수인 경우 주황색의 옆은 노란색<br>
+    4. 세로의 마지막이 짝수인 경우 주황색의 아래는 연두색<br>
+    5. 가로와 세로가 모두 짝수인 경우 마지막 칸은 빨간색
+  </div>
+
+  <div class="action-btn-group">
+    <button class="btn-clear" onclick="clearAll()">전체 선택 해제 (Ctrl+E)</button>
+    <button class="btn-undo" onclick="undo()">실행 취소 (Ctrl+Z)</button>
+  </div>
+
+  <div class="result">
+    <div class="field" style="margin-bottom: 12px;">
+      <label>무대 높이 선택</label>
+      <div class="height-btn-grid" id="heightGrid">
+        <div class="height-btn active" data-hval="500" onclick="setStageHeight(500, this)">500~</div>
+        <div class="height-btn" data-hval="700" onclick="setStageHeight(700, this)">700~</div>
+        <div class="height-btn" data-hval="900" onclick="setStageHeight(900, this)">900~</div>
+        <div class="height-btn" data-hval="1000" onclick="setStageHeight(1000, this)">1000~</div>
+        <div class="height-btn" data-hval="1200" onclick="setStageHeight(1200, this)">1200~</div>
+        <div class="height-btn" data-hval="1500" onclick="setStageHeight(1500, this)">1500~</div>
+        <div class="height-btn" data-hval="1800" onclick="setStageHeight(1800, this)">1800~</div>
+      </div>
+    </div>
+
+    <p>전체 바운딩 범위: <b id="boundsText">0 x 0 mm</b></p>
+    <p>외곽선 총 둘레: <b id="perimeterText">0 mm</b></p>
+    <p>총 선택 면적: <b id="areaText">0</b> m²</p>
+    <p>온장 (1820×910) 수량: <b id="fullBoardCount">0</b> 장</p>
+    <p>반절 (910×910) 수량: <b id="halfBoardCount">0</b> 개</p>
+    
+    <div class="sub-result">
+      <h4>🔨 부자재 산출 내역</h4>
+      <p>• <b>H프레임</b>: <b id="hFrameText">0 개</b></p>
+      <p>• <b>X바</b>: <b id="xBarText">0 개</b></p>
+      <div id="xBarWarning" class="warning-text"></div>
+      <p>• <b>핀 (총합)</b>: <b id="totalPinText">0 개</b></p>
+      <p class="pin-detail">
+        - 1핀: <span id="pin1Text" style="font-size:14px; color:#0056b3;">0</span>개 | 
+        2핀: <span id="pin2Text" style="font-size:14px; color:#0056b3;">0</span>개<br>
+        - 3핀: <span id="pin3Text" style="font-size:14px; color:#0056b3;">0</span>개 | 
+        4핀: <span id="pin4Text" style="font-size:14px; color:#0056b3;">0</span>개
+      </p>
+    </div>
+
+    <p class="highlight">총 필요 상판 (1820×910 기준): <br><span id="boardCount" style="font-size:18px;">0 장</span></p>
+  </div>
+
+  <div class="instructions">
+    <b>💡 조작 안내</b><br>
+    • <b>모바일 터치</b>: 한 손가락(영역 지정), 두 손가락(이동 및 줌)<br>
+    • <b>PC 조작</b>: 마우스 휠(확대/축소), Space+드래그(이동)
+  </div>
+</div>
+
+<script>
+  const container = document.getElementById('canvas-container');
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+    render();
+  }
+  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('orientationchange', () => {
+    setTimeout(resizeCanvas, 150);
+  });
+
+  const MODULE_MM = 910;
+  let stageWidthMm = 29000;
+  let stageHeightMm = 20000;
+
+  let COLS = Math.ceil(stageWidthMm / MODULE_MM);
+  let ROWS = Math.ceil(stageHeightMm / MODULE_MM);
+
+  let grid = Array.from({ length: COLS }, () => Array(ROWS).fill(null));
+
+  let selectedHeightVal = 500;
+
+  function setStageHeight(hVal, btnEl) {
+    selectedHeightVal = hVal;
+    document.querySelectorAll('#heightGrid .height-btn').forEach(btn => btn.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    render();
+  }
+
+  function setCanvasSize(widthMm, heightMm, btnEl) {
+    if (stageWidthMm === widthMm && stageHeightMm === heightMm) return;
+
+    let hasData = grid.some(row => row.some(cell => cell !== null));
+    if (hasData) {
+      if (!confirm('작업화면 크기를 변경하면 기존에 배치된 상판이 초기화됩니다. 변경하시겠습니까?')) {
+        return;
+      }
+    }
+
+    stageWidthMm = widthMm;
+    stageHeightMm = heightMm;
+    COLS = Math.ceil(stageWidthMm / MODULE_MM);
+    ROWS = Math.ceil(stageHeightMm / MODULE_MM);
+
+    grid = Array.from({ length: COLS }, () => Array(ROWS).fill(null));
+    historyStack = [];
+
+    document.querySelectorAll('#areaGrid .area-btn').forEach(btn => btn.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+
+    render();
+  }
+
+  let historyStack = [];
+  const MAX_HISTORY = 20;
+
+  function saveState() {
+    if (historyStack.length >= MAX_HISTORY) historyStack.shift();
+    historyStack.push(JSON.stringify(grid));
+  }
+
+  function undo() {
+    if (historyStack.length > 0) {
+      grid = JSON.parse(historyStack.pop());
+      render();
+    }
+  }
+
+  let scale = 0.25;
+  let offsetX = 40;
+  let offsetY = 40;
+
+  let currentColor = 'orange';
+  let isPointerDown = false;
+  let isRightClick = false;
+  let isPanning = false;
+  let isSpacePressed = false;
+
+  let startGridPos = null;
+  let currentDragBox = null;
+
+  let lastTouchMidX = 0;
+  let lastTouchMidY = 0;
+  let initialPinchDistance = null;
+
+  const colorStyles = {
+    orange: { fill: 'rgba(255, 153, 0, 0.85)', stroke: '#b35900' },
+    blue:   { fill: 'rgba(0, 123, 255, 0.85)', stroke: '#003d80' },
+    yellow: { fill: 'rgba(255, 193, 7, 0.85)',  stroke: '#b78103' },
+    green:  { fill: 'rgba(40, 167, 69, 0.85)',  stroke: '#1e7e34' },
+    red:    { fill: 'rgba(220, 53, 69, 0.85)',  stroke: '#84121d' }
+  };
+
+  function setColor(color) {
+    currentColor = color;
+    document.querySelectorAll('#colorGrid .key-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.color === color);
+    });
+  }
+
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') isSpacePressed = true;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') { e.preventDefault(); clearAll(); return; }
+
+    const key = e.key;
+    if (key === '1') setColor('orange');
+    if (key === '2') setColor('blue');
+    if (key === '3') setColor('yellow');
+    if (key === '4') setColor('green');
+    if (key === '5') setColor('red');
+    if (key.toLowerCase() === 'e') setColor('erase');
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') isSpacePressed = false;
+  });
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+    zoomAt(e.clientX, e.clientY, zoomFactor);
+  }, { passive: false });
+
+  function zoomAt(clientX, clientY, zoomFactor) {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = clientX - rect.left;
+    const mouseY = clientY - rect.top;
+
+    const newScale = Math.min(Math.max(scale * zoomFactor, 0.05), 3.0);
+    offsetX = mouseX - (mouseX - offsetX) * (newScale / scale);
+    offsetY = mouseY - (mouseY - offsetY) * (newScale / scale);
+    scale = newScale;
+    render();
+  }
+
+  function screenToGrid(screenX, screenY) {
+    const worldX = (screenX - offsetX) / scale;
+    const worldY = (screenY - offsetY) / scale;
+    const col = Math.floor(worldX / (MODULE_MM * 0.1));
+    const row = Math.floor(worldY / (MODULE_MM * 0.1));
+    return { col: Math.max(0, Math.min(COLS - 1, col)), row: Math.max(0, Math.min(ROWS - 1, row)) };
+  }
+
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    if (isSpacePressed || e.button === 1) {
+      isPanning = true;
+      startPanX = mouseX - offsetX;
+      startPanY = mouseY - offsetY;
+      return;
+    }
+
+    saveState();
+    isPointerDown = true;
+    isRightClick = (e.button === 2);
+    startGridPos = screenToGrid(mouseX, mouseY);
+    updateDragSelection(mouseX, mouseY);
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    if (isPanning) {
+      offsetX = mouseX - startPanX;
+      offsetY = mouseY - startPanY;
+      render();
+      return;
+    }
+
+    if (isPointerDown) {
+      updateDragSelection(mouseX, mouseY);
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isPointerDown) {
+      applyDragSelection();
+      isPointerDown = false;
+      currentDragBox = null;
+      render();
+    }
+    isPanning = false;
+  });
+
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const mouseX = touch.clientX - rect.left;
+      const mouseY = touch.clientY - rect.top;
+
+      saveState();
+      isPointerDown = true;
+      isRightClick = false;
+      startGridPos = screenToGrid(mouseX, mouseY);
+      updateDragSelection(mouseX, mouseY);
+    } 
+    else if (e.touches.length === 2) {
+      isPointerDown = false;
+      currentDragBox = null;
+
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+
+      initialPinchDistance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      lastTouchMidX = (t1.clientX + t2.clientX) / 2;
+      lastTouchMidY = (t1.clientY + t2.clientY) / 2;
+      render();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+
+    if (e.touches.length === 1 && isPointerDown) {
+      const touch = e.touches[0];
+      const mouseX = touch.clientX - rect.left;
+      const mouseY = touch.clientY - rect.top;
+      updateDragSelection(mouseX, mouseY);
+    } 
+    else if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+
+      const currentMidX = (t1.clientX + t2.clientX) / 2;
+      const currentMidY = (t1.clientY + t2.clientY) / 2;
+      const currentDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+
+      const deltaX = currentMidX - lastTouchMidX;
+      const deltaY = currentMidY - lastTouchMidY;
+      offsetX += deltaX;
+      offsetY += deltaY;
+
+      if (initialPinchDistance && initialPinchDistance > 0) {
+        const factor = currentDist / initialPinchDistance;
+        zoomAt(currentMidX, currentMidY, factor);
+      }
+
+      lastTouchMidX = currentMidX;
+      lastTouchMidY = currentMidY;
+      initialPinchDistance = currentDist;
+      render();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    if (isPointerDown) {
+      applyDragSelection();
+      isPointerDown = false;
+      currentDragBox = null;
+      render();
+    }
+    if (e.touches.length < 2) {
+      initialPinchDistance = null;
+    }
+  });
+
+  function updateDragSelection(screenX, screenY) {
+    const currentPos = screenToGrid(screenX, screenY);
+    const minC = Math.min(startGridPos.col, currentPos.col);
+    const maxC = Math.max(startGridPos.col, currentPos.col);
+    const minR = Math.min(startGridPos.row, currentPos.row);
+    const maxR = Math.max(startGridPos.row, currentPos.row);
+
+    currentDragBox = { minC, maxC, minR, maxR };
+    render();
+  }
+
+  function applyDragSelection() {
+    if (!currentDragBox) return;
+    const { minC, maxC, minR, maxR } = currentDragBox;
+
+    if (isRightClick || currentColor === 'erase') {
+      for (let c = minC; c <= maxC; c++) {
+        for (let r = minR; r <= maxR; r++) {
+          grid[c][r] = null;
+        }
+      }
+      return;
+    }
+
+    let c = minC;
+    while (c <= maxC) {
+      let r = minR;
+      const remC = maxC - c + 1;
+
+      while (r <= maxR) {
+        const remR = maxR - r + 1;
+
+        if (remC >= 2) {
+          grid[c][r] = { dir: 'H', colorKey: currentColor };
+          grid[c + 1][r] = { dir: 'H', colorKey: currentColor };
+          r += 1;
+        }
+        else if (remR >= 2) {
+          grid[c][r] = { dir: 'V', colorKey: currentColor };
+          grid[c][r + 1] = { dir: 'V', colorKey: currentColor };
+          r += 2;
+        }
+        else {
+          grid[c][r] = { dir: 'HALF', colorKey: currentColor };
+          r += 1;
+        }
+      }
+
+      if (remC >= 2) {
+        c += 2;
+      } else {
+        c += 1;
+      }
+    }
+  }
+
+  function clearAll() {
+    if (confirm('전체 선택을 해제하시겠습니까?')) {
+      saveState();
+      grid = Array.from({ length: COLS }, () => Array(ROWS).fill(null));
+      render();
+    }
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+
+    const cellPx = MODULE_MM * 0.1;
+
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        const x = c * cellPx;
+        const y = r * cellPx;
+        ctx.fillStyle = 'rgba(0, 123, 255, 0.25)';
+        ctx.fillRect(x, y, cellPx, cellPx);
+        ctx.strokeStyle = '#2c3e50';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x, y, cellPx, cellPx);
+      }
+    }
+
+    const totalW = COLS * cellPx;
+    const totalH = ROWS * cellPx;
+    ctx.strokeStyle = '#888888';
+    ctx.lineWidth = 1.5 / scale;
+    ctx.setLineDash([6, 6]);
+
+    ctx.beginPath();
+    ctx.moveTo(totalW / 2, 0);
+    ctx.lineTo(totalW / 2, totalH);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(0, totalH / 2);
+    ctx.lineTo(totalW, totalH / 2);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+
+    let processed = Array.from({ length: COLS }, () => Array(ROWS).fill(false));
+    let boards = [];
+    let fullBoardCount = 0;
+    let halfBoardCount = 0;
+
+    let colorCounts = { orange: 0, blue: 0, yellow: 0, green: 0, red: 0 };
+
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        const cell = grid[c][r];
+        if (cell && !processed[c][r]) {
+          const colorKey = cell.colorKey;
+
+          if (cell.dir === 'H' && c + 1 < COLS) {
+            drawBoard(c, r, 2, 1, colorKey, cellPx);
+            processed[c][r] = true;
+            processed[c + 1][r] = true;
+            fullBoardCount++;
+            colorCounts[colorKey] = (colorCounts[colorKey] || 0) + 1;
+            boards.push({ type: 'full-h', c, r, spanC: 2, spanR: 1 });
+          } 
+          else if (cell.dir === 'V' && r + 1 < ROWS) {
+            drawBoard(c, r, 1, 2, colorKey, cellPx);
+            processed[c][r] = true;
+            processed[c][r + 1] = true;
+            fullBoardCount++;
+            colorCounts[colorKey] = (colorCounts[colorKey] || 0) + 1;
+            boards.push({ type: 'full-v', c, r, spanC: 1, spanR: 2 });
+          } 
+          else {
+            drawBoard(c, r, 1, 1, colorKey || 'red', cellPx);
+            processed[c][r] = true;
+            halfBoardCount++;
+            colorCounts[colorKey || 'red'] = (colorCounts[colorKey || 'red'] || 0) + 1;
+            boards.push({ type: 'half', c, r, spanC: 1, spanR: 1 });
+          }
+        }
+      }
+    }
+
+    if (isPointerDown && currentDragBox) {
+      const { minC, maxC, minR, maxR } = currentDragBox;
+      const x = minC * cellPx;
+      const y = minR * cellPx;
+      const w = (maxC - minC + 1) * cellPx;
+      const h = (maxR - minR + 1) * cellPx;
+
+      ctx.fillStyle = (isRightClick || currentColor === 'erase') ? 'rgba(220, 53, 69, 0.3)' : 'rgba(40, 167, 69, 0.3)';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = (isRightClick || currentColor === 'erase') ? '#dc3545' : '#28a745';
+      ctx.lineWidth = 3 / scale;
+      ctx.strokeRect(x, y, w, h);
+    }
+
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 2 / scale;
+    ctx.strokeRect(0, 0, COLS * cellPx, ROWS * cellPx);
+
+    calculateAllMetrics(cellPx, fullBoardCount, halfBoardCount, boards, colorCounts);
+
+    ctx.restore();
+  }
+
+  function drawBoard(col, row, spanCols, spanRows, colorKey, cellPx) {
+    const x = col * cellPx;
+    const y = row * cellPx;
+    const w = spanCols * cellPx;
+    const h = spanRows * cellPx;
+
+    const style = colorStyles[colorKey] || colorStyles.orange;
+    ctx.fillStyle = style.fill;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = style.stroke;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+
+    if (spanCols === 2) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x + cellPx, y);
+      ctx.lineTo(x + cellPx, y + h);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (spanRows === 2) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x, y + cellPx);
+      ctx.lineTo(x + w, y + cellPx);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  function calculateAllMetrics(cellPx, fullBoardCount, halfBoardCount, boards, colorCounts) {
+    let count = 0;
+    let minC = COLS, maxC = -1, minR = ROWS, maxR = -1;
+
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        if (grid[c][r] !== null) {
+          count++;
+          if (c < minC) minC = c;
+          if (c > maxC) maxC = c;
+          if (r < minR) minR = r;
+          if (r > maxR) maxR = r;
+        }
+      }
+    }
+
+    if (count === 0) {
+      document.getElementById('boundsText').innerText = `0 x 0 mm`;
+      document.getElementById('perimeterText').innerText = `0 mm`;
+      document.getElementById('areaText').innerText = 0;
+      document.getElementById('fullBoardCount').innerText = 0;
+      document.getElementById('halfBoardCount').innerText = 0;
+      document.getElementById('boardCount').innerText = `0 장`;
+      document.getElementById('hFrameText').innerText = `0 개`;
+      document.getElementById('xBarText').innerText = `0 개`;
+      document.getElementById('xBarWarning').innerText = '';
+      document.getElementById('totalPinText').innerText = `0 개`;
+      document.getElementById('pin1Text').innerText = 0;
+      document.getElementById('pin2Text').innerText = 0;
+      document.getElementById('pin3Text').innerText = 0;
+      document.getElementById('pin4Text').innerText = 0;
+      return;
+    }
+
+    const boundWidthMm = (maxC - minC + 1) * MODULE_MM;
+    const boundHeightMm = (maxR - minR + 1) * MODULE_MM;
+    const totalAreaM2 = (count * MODULE_MM * MODULE_MM) / 1000000;
+
+    const { totalPerimeterMm } = traceAndDrawSegments(cellPx);
+
+    document.getElementById('boundsText').innerText = `${boundWidthMm.toLocaleString()} x ${boundHeightMm.toLocaleString()} mm`;
+    document.getElementById('perimeterText').innerText = `${totalPerimeterMm.toLocaleString()} mm`;
+    document.getElementById('areaText').innerText = totalAreaM2.toFixed(2);
+    document.getElementById('fullBoardCount').innerText = fullBoardCount;
+    document.getElementById('halfBoardCount').innerText = halfBoardCount;
+
+    if (halfBoardCount > 0) {
+      const extraTotal = fullBoardCount + Math.ceil(halfBoardCount / 2);
+      document.getElementById('boardCount').innerText = `${extraTotal} 장 (온장 ${fullBoardCount}장 + 반절 ${halfBoardCount}개)`;
+    } else {
+      document.getElementById('boardCount').innerText = `${fullBoardCount} 장`;
+    }
+
+    calculateHardware(minC, maxC, minR, maxR, boards, colorCounts);
+  }
+
+  function calculateHardware(minC, maxC, minR, maxR, boards, colorCounts) {
+    const orange = colorCounts.orange || 0;
+    const yellow = colorCounts.yellow || 0;
+    const green = colorCounts.green || 0;
+    const red = colorCounts.red || 0;
+
+    const hFrameCount = (orange * 2) + yellow + (green * 2) + red;
+    const xBarCount = (orange * 2) + (yellow * 2) + green + red;
+
+    let hFrameTextStr = `${hFrameCount} 개`;
+    if (hFrameCount > 0) {
+      let hLabel = "480h";
+      if (selectedHeightVal === 700) hLabel = "680h";
+      else if (selectedHeightVal === 900) hLabel = "800h";
+      else if (selectedHeightVal === 1000) hLabel = "870h";
+      else if (selectedHeightVal === 1200) hLabel = "1100h";
+      else if (selectedHeightVal === 1500) hLabel = "1390h";
+      else if (selectedHeightVal === 1800) hLabel = "1700h";
+      hFrameTextStr = `${hFrameCount} 개 (${hLabel})`;
+    }
+
+    let xBarTextStr = `${xBarCount} 개`;
+    if (xBarCount > 0) {
+      let xLabel = "short";
+      if (selectedHeightVal >= 900 && selectedHeightVal <= 1500) {
+        xLabel = "middle";
+      } else if (selectedHeightVal >= 1800) {
+        xLabel = "long";
+      }
+      xBarTextStr = `${xBarCount} 개 (${xLabel})`;
+    }
+
+    document.getElementById('hFrameText').innerText = hFrameTextStr;
+    document.getElementById('xBarText').innerText = xBarTextStr;
+
+    const warningEl = document.getElementById('xBarWarning');
+    if (red > 0) {
+      warningEl.innerText = '⚠️ 910 X바 확인';
+    } else {
+      warningEl.innerText = '';
+    }
+
+    let pin1 = 0, pin2 = 0, pin3 = 0, pin4 = 0;
+
+    for (let c = minC; c <= maxC + 1; c++) {
+      for (let r = minR; r <= maxR + 1; r++) {
+        let touchingBoards = [];
+
+        boards.forEach(b => {
+          const corners = [
+            { c: b.c, r: b.r },
+            { c: b.c + b.spanC, r: b.r },
+            { c: b.c, r: b.r + b.spanR },
+            { c: b.c + b.spanC, r: b.r + b.spanR }
+          ];
+
+          const isCorner = corners.some(corner => corner.c === c && corner.r === r);
+          if (isCorner) touchingBoards.push(b);
+        });
+
+        const topLeft     = (c > minC && r > minR) ? (grid[c - 1][r - 1] !== null) : false;
+        const topRight    = (c <= maxC && r > minR) ? (grid[c][r - 1] !== null) : false;
+        const bottomLeft  = (c > minC && r <= maxR) ? (grid[c - 1][r] !== null) : false;
+        const bottomRight = (c <= maxC && r <= maxR) ? (grid[c][r] !== null) : false;
+
+        const neighborCount = (topLeft ? 1 : 0) + (topRight ? 1 : 0) + (bottomLeft ? 1 : 0) + (bottomRight ? 1 : 0);
+
+        if (neighborCount === 0) continue;
+
+        const boardCount = touchingBoards.length;
+
+        if (neighborCount === 1) {
+          pin1++;
+        } else if (neighborCount === 2) {
+          if ((topLeft && bottomRight) || (topRight && bottomLeft)) {
+            pin3++;
+          } else {
+            const isCorner = ((topLeft && topRight) || (bottomLeft && bottomRight)) && 
+                             ((topLeft && bottomLeft) || (topRight && bottomRight));
+            if (isCorner) pin3++;
+            else {
+              if (boardCount >= 2) pin2++;
+            }
+          }
+        } else if (neighborCount === 3) {
+          pin3++;
+        } else if (neighborCount === 4) {
+          if (boardCount >= 2) pin4++;
+        }
+      }
+    }
+
+    const totalPins = pin1 + pin2 + pin3 + pin4;
+
+    document.getElementById('totalPinText').innerText = `${totalPins} 개`;
+    document.getElementById('pin1Text').innerText = pin1;
+    document.getElementById('pin2Text').innerText = pin2;
+    document.getElementById('pin3Text').innerText = pin3;
+    document.getElementById('pin4Text').innerText = pin4;
+  }
+
+  function traceAndDrawSegments(cellPx) {
+    let segments = [];
+    let totalEdges = 0;
+
+    for (let r = 0; r <= ROWS; r++) {
+      let currentSeg = null;
+      for (let c = 0; c < COLS; c++) {
+        const topCell = (r > 0) ? (grid[c][r - 1] !== null) : false;
+        const bottomCell = (r < ROWS) ? (grid[c][r] !== null) : false;
+        const isBoundary = topCell !== bottomCell;
+
+        if (isBoundary) {
+          totalEdges++;
+          const side = topCell ? 'bottom' : 'top';
+          if (!currentSeg) {
+            currentSeg = { startC: c, endC: c + 1, r: r, side: side };
+          } else if (currentSeg.side === side) {
+            currentSeg.endC = c + 1;
+          } else {
+            segments.push({ type: 'H', ...currentSeg });
+            currentSeg = { startC: c, endC: c + 1, r: r, side: side };
+          }
+        } else {
+          if (currentSeg) {
+            segments.push({ type: 'H', ...currentSeg });
+            currentSeg = null;
+          }
+        }
+      }
+      if (currentSeg) segments.push({ type: 'H', ...currentSeg });
+    }
+
+    for (let c = 0; c <= COLS; c++) {
+      let currentSeg = null;
+      for (let r = 0; r < ROWS; r++) {
+        const leftCell = (c > 0) ? (grid[c - 1][r] !== null) : false;
+        const rightCell = (c < COLS) ? (grid[c][r] !== null) : false;
+        const isBoundary = leftCell !== rightCell;
+
+        if (isBoundary) {
+          totalEdges++;
+          const side = leftCell ? 'right' : 'left';
+          if (!currentSeg) {
+            currentSeg = { startR: r, endR: r + 1, c: c, side: side };
+          } else if (currentSeg.side === side) {
+            currentSeg.endR = r + 1;
+          } else {
+            segments.push({ type: 'V', ...currentSeg });
+            currentSeg = { startR: r, endR: r + 1, c: c, side: side };
+          }
+        } else {
+          if (currentSeg) {
+            segments.push({ type: 'V', ...currentSeg });
+            currentSeg = null;
+          }
+        }
+      }
+      if (currentSeg) segments.push({ type: 'V', ...currentSeg });
+    }
+
+    ctx.strokeStyle = '#28a745';
+    ctx.fillStyle = '#28a745';
+    ctx.lineWidth = 2 / scale;
+    ctx.font = `bold ${Math.max(11, Math.round(13 / scale))}px sans-serif`;
+
+    segments.forEach(seg => {
+      if (seg.type === 'H') {
+        const x1 = seg.startC * cellPx;
+        const x2 = seg.endC * cellPx;
+        const y = seg.r * cellPx;
+        const lengthMm = (seg.endC - seg.startC) * MODULE_MM;
+        const offset = (seg.side === 'top') ? -12 / scale : 12 / scale;
+
+        ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+        ctx.textAlign = 'center'; ctx.textBaseline = (seg.side === 'top') ? 'bottom' : 'top';
+        ctx.fillText(`${lengthMm.toLocaleString()}mm`, (x1 + x2) / 2, y + offset);
+      } else {
+        const y1 = seg.startR * cellPx;
+        const y2 = seg.endR * cellPx;
+        const x = seg.c * cellPx;
+        const lengthMm = (seg.endR - seg.startR) * MODULE_MM;
+        const offset = (seg.side === 'left') ? -12 / scale : 12 / scale;
+
+        ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke();
+        ctx.save(); ctx.translate(x + offset, (y1 + y2) / 2); ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'center'; ctx.textBaseline = (seg.side === 'left') ? 'bottom' : 'top';
+        ctx.fillText(`${lengthMm.toLocaleString()}mm`, 0, 0); ctx.restore();
+      }
+    });
+
+    return { totalPerimeterMm: totalEdges * MODULE_MM, segments };
+  }
+
+  resizeCanvas();
+</script>
+</body>
+</html>
