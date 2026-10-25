@@ -6,88 +6,40 @@
   <title>무대 상판 및 부자재 산출 계산기</title>
   <style>
     * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-    }
+    body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; display: flex; flex-direction: column; gap: 15px; padding: 15px; background: #f4f4f9; margin: 0; min-height: 100vh; }
     
-    body { 
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; 
-      display: flex; 
-      flex-direction: column; 
-      padding: 10px; 
-      gap: 10px;
-      background: #f4f4f9; 
+    /* 데스크탑 레이아웃 */
+    @media (min-width: 900px) {
+      body { flex-direction: row; height: 100vh; overflow: hidden; padding: 15px; }
+      #canvas-container { flex: 1; height: 100%; }
+      .panel { width: 400px; height: 100%; max-height: 100%; }
     }
-    
-    /* 1. 모바일 세로모드 (Portrait): 상단 절반 고정 + 하단 스크롤 */
+
+    /* 모바일 세로모드: 상단 50% 고정, 하단 50% 스크롤 */
+    @media (max-width: 899px) and (orientation: portrait) {
+      body { height: 100vh; overflow: hidden; gap: 10px; padding: 10px; }
+      #canvas-container { flex: 0 0 calc(50dvh - 15px); height: calc(50dvh - 15px); width: 100%; }
+      .panel { flex: 1; height: calc(50dvh - 15px); max-height: calc(50dvh - 15px); width: 100%; }
+    }
+
+    /* 모바일 가로모드: 좌측 60% 고정, 우측 40% 스크롤 */
+    @media (max-width: 899px) and (orientation: landscape), (max-height: 500px) and (orientation: landscape) {
+      body { flex-direction: row; height: 100vh; overflow: hidden; gap: 10px; padding: 10px; }
+      #canvas-container { flex: 0 0 calc(60% - 5px); width: calc(60% - 5px); height: 100%; }
+      .panel { flex: 0 0 calc(40% - 5px); width: calc(40% - 5px); height: 100%; max-height: 100%; }
+    }
+
     #canvas-container { 
       background: #1e1e1e; 
       border: 2px solid #333; 
       position: relative; 
       overflow: hidden;
       border-radius: 8px;
-      width: 100%;
-      height: 50vh; /* 상단 절반 고정 */
-      flex-shrink: 0;
       touch-action: none;
     }
     canvas { cursor: crosshair; display: block; width: 100%; height: 100%; touch-action: none; }
 
-    .panel { 
-      background: #fff; 
-      padding: 15px; 
-      border-radius: 8px; 
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
-      flex: 1;
-      height: calc(50vh - 30px);
-      overflow-y: auto; 
-      -webkit-overflow-scrolling: touch;
-    }
-
-    /* 2. 모바일 가로모드 (Landscape): 좌측 3/5 (60%) 전체 영역 보임 + 우측 2/5 (40%) 스크롤 */
-    @media (orientation: landscape) and (max-width: 899px), (orientation: landscape) and (max-height: 500px) {
-      body {
-        flex-direction: row;
-        padding: 10px;
-        gap: 10px;
-      }
-      #canvas-container {
-        width: 60%; /* 좌측 3/5 */
-        height: calc(100vh - 20px);
-        flex-shrink: 0;
-      }
-      .panel {
-        width: 40%; /* 우측 2/5 */
-        height: calc(100vh - 20px);
-        max-height: calc(100vh - 20px);
-        flex: none;
-      }
-    }
-
-    /* 3. 데스크톱 (min-width: 900px & 가로) */
-    @media (min-width: 900px) and (orientation: landscape) {
-      body {
-        flex-direction: row;
-        padding: 15px;
-        gap: 15px;
-      }
-      #canvas-container {
-        flex: 1;
-        width: auto;
-        height: calc(100vh - 30px);
-      }
-      .panel {
-        width: 400px;
-        height: calc(100vh - 30px);
-        max-height: calc(100vh - 30px);
-        flex: none;
-      }
-    }
-
+    .panel { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); overflow-y: auto; }
     .field { margin-bottom: 15px; }
     label { display: block; font-size: 13px; font-weight: bold; color: #333; margin-bottom: 6px; }
 
@@ -190,12 +142,17 @@
 
     .action-btn-group {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       margin-top: 10px;
     }
-    .btn-clear { background: #dc3545; color: white; border: none; cursor: pointer; font-weight: bold; flex: 1; padding: 10px; border-radius: 4px; font-size: 13px; }
+    .btn-clear { background: #dc3545; color: white; border: none; cursor: pointer; font-weight: bold; flex: 1; padding: 9px 4px; border-radius: 4px; font-size: 12px; }
     .btn-clear:hover { background: #c82333; }
-    .btn-undo { background: #6c757d; color: white; border: none; cursor: pointer; font-weight: bold; flex: 1; padding: 10px; border-radius: 4px; font-size: 13px; }
+    
+    .btn-auto { background: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; flex: 1; padding: 9px 4px; border-radius: 4px; font-size: 12px; transition: all 0.2s; }
+    .btn-auto:hover:not(:disabled) { background: #0056b3; }
+    .btn-auto:disabled { background: #cccccc; color: #666666; cursor: not-allowed; opacity: 0.7; }
+
+    .btn-undo { background: #6c757d; color: white; border: none; cursor: pointer; font-weight: bold; flex: 1; padding: 9px 4px; border-radius: 4px; font-size: 12px; }
     .btn-undo:hover { background: #5a6268; }
 
     .usage-guide {
@@ -209,6 +166,12 @@
       line-height: 1.5;
     }
     .usage-guide b { display: block; margin-bottom: 4px; color: #f57f17; }
+    .usage-guide .note {
+      color: #d9534f;
+      font-weight: bold;
+      margin-top: 6px;
+      display: block;
+    }
 
     .result { margin-top: 15px; padding-top: 15px; border-top: 2px dashed #eee; }
     .result p { margin: 6px 0; font-size: 13px; }
@@ -228,7 +191,7 @@
 </div>
 
 <div class="panel">
-  <h3 style="margin-top: 0; margin-bottom: 12px;">🎭 무대 상판 및 부자재 산출</h3>
+  <h3 style="margin-bottom: 12px;">🎭 무대 상판 및 부자재 산출</h3>
   
   <div class="field">
     <label>작업화면 영역 선택</label>
@@ -257,11 +220,13 @@
     2. 가로, 세로 홀수 번째 칸을 파란색으로 배치<br>
     3. 가로의 마지막이 짝수인 경우 주황색의 옆은 노란색<br>
     4. 세로의 마지막이 짝수인 경우 주황색의 아래는 연두색<br>
-    5. 가로와 세로가 모두 짝수인 경우 마지막 칸은 빨간색
+    5. 가로와 세로가 모두 짝수인 경우 마지막 칸은 빨간색<br>
+    <span class="note">※ '자동변경'은 직사각일 때만 정상적용됨.(기타 형태는 수동변경 필요!)</span>
   </div>
 
   <div class="action-btn-group">
-    <button class="btn-clear" onclick="clearAll()">전체 선택 해제 (Ctrl+E)</button>
+    <button class="btn-clear" onclick="clearAll()">전체 해제 (Ctrl+E)</button>
+    <button class="btn-auto" id="btnAutoChange" onclick="applyAutoPattern()" disabled title="3640x1820 이상 선택 시 활성화">자동 변경 (T)</button>
     <button class="btn-undo" onclick="undo()">실행 취소 (Ctrl+Z)</button>
   </div>
 
@@ -305,7 +270,7 @@
   <div class="instructions">
     <b>💡 조작 안내</b><br>
     • <b>모바일 터치</b>: 한 손가락(영역 지정), 두 손가락(이동 및 줌)<br>
-    • <b>PC 조작</b>: 마우스 휠(확대/축소), Space+드래그(이동)
+    • <b>PC 조작</b>: 마우스 휠(확대/축소), Space+드래그(이동), T(자동 변경)
   </div>
 </div>
 
@@ -333,8 +298,6 @@
   let isRightClick = false;
   let isPanning = false;
   let isSpacePressed = false;
-  let startPanX = 0;
-  let startPanY = 0;
 
   let startGridPos = null;
   let currentDragBox = null;
@@ -343,39 +306,24 @@
   let lastTouchMidY = 0;
   let initialPinchDistance = null;
 
-  function fitStageToView() {
-    if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
-    const stagePixelW = COLS * MODULE_MM * 0.1;
-    const stagePixelH = ROWS * MODULE_MM * 0.1;
-    const padding = 40;
+  let historyStack = [];
+  const MAX_HISTORY = 20;
 
-    const availW = container.clientWidth - padding * 2;
-    const availH = container.clientHeight - padding * 2;
-
-    if (availW <= 0 || availH <= 0) return;
-
-    scale = Math.min(availW / stagePixelW, availH / stagePixelH);
-    scale = Math.max(0.05, Math.min(scale, 3.0));
-
-    offsetX = (container.clientWidth - stagePixelW * scale) / 2;
-    offsetY = (container.clientHeight - stagePixelH * scale) / 2;
-  }
+  const colorStyles = {
+    orange: { fill: 'rgba(255, 153, 0, 0.85)', stroke: '#b35900' },
+    blue:   { fill: 'rgba(0, 123, 255, 0.85)', stroke: '#003d80' },
+    yellow: { fill: 'rgba(255, 193, 7, 0.85)',  stroke: '#b78103' },
+    green:  { fill: 'rgba(40, 167, 69, 0.85)',  stroke: '#1e7e34' },
+    red:    { fill: 'rgba(220, 53, 69, 0.85)',  stroke: '#84121d' }
+  };
 
   function resizeCanvas() {
     const rect = container.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    
-    // Internal canvas resolution matching CSS size
-    canvas.width = Math.floor(rect.width * dpr);
-    canvas.height = Math.floor(rect.height * dpr);
-    
-    // Use DPR scaling for high-DPI displays
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    
-    fitStageToView();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
     render();
   }
-
   window.addEventListener('resize', resizeCanvas);
 
   function setStageHeight(hVal, btnEl) {
@@ -406,12 +354,8 @@
     document.querySelectorAll('#areaGrid .area-btn').forEach(btn => btn.classList.remove('active'));
     if (btnEl) btnEl.classList.add('active');
 
-    fitStageToView();
     render();
   }
-
-  let historyStack = [];
-  const MAX_HISTORY = 20;
 
   function saveState() {
     if (historyStack.length >= MAX_HISTORY) historyStack.shift();
@@ -424,14 +368,6 @@
       render();
     }
   }
-
-  const colorStyles = {
-    orange: { fill: 'rgba(255, 153, 0, 0.85)', stroke: '#b35900' },
-    blue:   { fill: 'rgba(0, 123, 255, 0.85)', stroke: '#003d80' },
-    yellow: { fill: 'rgba(255, 193, 7, 0.85)',  stroke: '#b78103' },
-    green:  { fill: 'rgba(40, 167, 69, 0.85)',  stroke: '#1e7e34' },
-    red:    { fill: 'rgba(220, 53, 69, 0.85)',  stroke: '#84121d' }
-  };
 
   function setColor(color) {
     currentColor = color;
@@ -448,6 +384,15 @@
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') { e.preventDefault(); clearAll(); return; }
 
     const key = e.key;
+    if (key.toLowerCase() === 't') {
+      const autoBtn = document.getElementById('btnAutoChange');
+      if (autoBtn && !autoBtn.disabled) {
+        e.preventDefault();
+        applyAutoPattern();
+        return;
+      }
+    }
+
     if (key === '1') setColor('orange');
     if (key === '2') setColor('blue');
     if (key === '3') setColor('yellow');
@@ -555,8 +500,8 @@
       const t2 = e.touches[1];
 
       initialPinchDistance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      lastTouchMidX = (t1.clientX + t2.clientX) / 2 - rect.left;
-      lastTouchMidY = (t1.clientY + t2.clientY) / 2 - rect.top;
+      lastTouchMidX = (t1.clientX + t2.clientX) / 2;
+      lastTouchMidY = (t1.clientY + t2.clientY) / 2;
       render();
     }
   }, { passive: false });
@@ -575,8 +520,8 @@
       const t1 = e.touches[0];
       const t2 = e.touches[1];
 
-      const currentMidX = (t1.clientX + t2.clientX) / 2 - rect.left;
-      const currentMidY = (t1.clientY + t2.clientY) / 2 - rect.top;
+      const currentMidX = (t1.clientX + t2.clientX) / 2;
+      const currentMidY = (t1.clientY + t2.clientY) / 2;
       const currentDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
 
       const deltaX = currentMidX - lastTouchMidX;
@@ -586,7 +531,7 @@
 
       if (initialPinchDistance && initialPinchDistance > 0) {
         const factor = currentDist / initialPinchDistance;
-        zoomAt(currentMidX + rect.left, currentMidY + rect.top, factor);
+        zoomAt(currentMidX, currentMidY, factor);
       }
 
       lastTouchMidX = currentMidX;
@@ -672,14 +617,134 @@
     }
   }
 
+  /* -------------------------------------------------------------
+     독립적으로 떨어진 무대 영역들(연결 컴포넌트)을 탐지하는 함수
+  ------------------------------------------------------------- */
+  function findConnectedRegions() {
+    let visited = Array.from({ length: COLS }, () => Array(ROWS).fill(false));
+    let regions = [];
+
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        if (grid[c][r] !== null && !visited[c][r]) {
+          let minC = c, maxC = c, minR = r, maxR = r;
+          let queue = [{ c, r }];
+          visited[c][r] = true;
+
+          while (queue.length > 0) {
+            let curr = queue.shift();
+            if (curr.c < minC) minC = curr.c;
+            if (curr.c > maxC) maxC = curr.c;
+            if (curr.r < minR) minR = curr.r;
+            if (curr.r > maxR) maxR = curr.r;
+
+            const neighbors = [
+              { c: curr.c + 1, r: curr.r },
+              { c: curr.c - 1, r: curr.r },
+              { c: curr.c, r: curr.r + 1 },
+              { c: curr.c, r: curr.r - 1 }
+            ];
+
+            neighbors.forEach(n => {
+              if (n.c >= 0 && n.c < COLS && n.r >= 0 && n.r < ROWS) {
+                if (grid[n.c][n.r] !== null && !visited[n.c][n.r]) {
+                  visited[n.c][n.r] = true;
+                  queue.push(n);
+                }
+              }
+            });
+          }
+
+          regions.push({ minC, maxC, minR, maxR });
+        }
+      }
+    }
+    return regions;
+  }
+
+  /* -------------------------------------------------------------
+     자동 변경 함수 (가로열이 홀수면 주황색/연두색, 짝수면 노란색/빨간색 적용)
+  ------------------------------------------------------------- */
+  function applyAutoPattern() {
+    const regions = findConnectedRegions();
+    if (regions.length === 0) return;
+
+    let modified = false;
+
+    regions.forEach(reg => {
+      const { minC, maxC, minR, maxR } = reg;
+      const totalCols = (maxC - minC + 1);
+      const totalRows = (maxR - minR + 1);
+
+      // 최소 규격 미달 시 해당 영역 제외 (3640mm = 4셀, 1820mm = 2셀)
+      if (totalCols < 4 || totalRows < 2) return;
+
+      if (!modified) {
+        saveState();
+        modified = true;
+      }
+
+      const blockCols = Math.ceil(totalCols / 2); // 1820mm(온장 가로) 단위 덩어리 수
+      const blockRows = totalRows;                // 910mm 단위 덩어리 수
+
+      const isColEven = (blockCols % 2 === 0); // 가로 덩어리 수(온장 기준 가로열 수)가 짝수인지 여부
+      const isRowEven = (totalRows % 2 === 0); // 세로행 짝수 여부
+
+      for (let bc = 0; bc < blockCols; bc++) {
+        for (let br = 0; br < blockRows; br++) {
+          const c1 = minC + bc * 2;
+          const c2 = c1 + 1;
+          const r = minR + br;
+
+          // 1-based index 판단
+          const isOddColBlock = ((bc + 1) % 2 !== 0);
+          const isOddRowBlock = ((br + 1) % 2 !== 0);
+          const isLastColBlock = (bc === blockCols - 1);
+          const isLastRowBlock = (br === blockRows - 1);
+
+          let colorToApply = 'blue'; // 기본 파란색
+
+          // 1. 홀수열 & 홀수행 -> 주황색
+          if (isOddColBlock && isOddRowBlock) {
+            colorToApply = 'orange';
+          }
+
+          // 2. 가로열 개수가 '짝수'이고 마지막 열일 때만 홀수행에 노란색 적용 (홀수개면 주황색 유지)
+          if (isColEven && isLastColBlock && isOddRowBlock) {
+            colorToApply = 'yellow';
+          }
+
+          // 3. 세로행이 짝수일 때 마지막 행의 홀수열 -> 연두색
+          if (isRowEven && isLastRowBlock && isOddColBlock) {
+            colorToApply = 'green';
+          }
+
+          // 4. 가로(짝수)와 세로(짝수)가 모두 짝수인 경우 우측 하단 모서리 -> 빨간색
+          if (isColEven && isRowEven && isLastColBlock && isLastRowBlock) {
+            colorToApply = 'red';
+          }
+
+          // 영역 내 실제 존재하는 셀에 색상 적용
+          if (c1 <= maxC && grid[c1][r] !== null) {
+            grid[c1][r].colorKey = colorToApply;
+          }
+          if (c2 <= maxC && grid[c2][r] !== null) {
+            grid[c2][r].colorKey = colorToApply;
+          }
+        }
+      }
+    });
+
+    if (modified) {
+      render();
+    }
+  }
+
   function render() {
     const dpr = window.devicePixelRatio || 1;
-    
-    // Always reset matrix and clear complete buffer to prevent scaled duplicate artifacts
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Apply device pixel ratio and pan/zoom transform
+
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.translate(offsetX, offsetY);
@@ -830,6 +895,8 @@
       }
     }
 
+    const autoBtn = document.getElementById('btnAutoChange');
+
     if (count === 0) {
       document.getElementById('boundsText').innerText = `0 x 0 mm`;
       document.getElementById('perimeterText').innerText = `0 mm`;
@@ -845,12 +912,20 @@
       document.getElementById('pin2Text').innerText = 0;
       document.getElementById('pin3Text').innerText = 0;
       document.getElementById('pin4Text').innerText = 0;
+
+      if (autoBtn) autoBtn.disabled = true;
       return;
     }
 
     const boundWidthMm = (maxC - minC + 1) * MODULE_MM;
     const boundHeightMm = (maxR - minR + 1) * MODULE_MM;
     const totalAreaM2 = (count * MODULE_MM * MODULE_MM) / 1000000;
+
+    if (autoBtn) {
+      const regions = findConnectedRegions();
+      const hasValidRegion = regions.some(r => ((r.maxC - r.minC + 1) >= 4) && ((r.maxR - r.minR + 1) >= 2));
+      autoBtn.disabled = !hasValidRegion;
+    }
 
     const { totalPerimeterMm } = traceAndDrawSegments(cellPx);
 
@@ -1064,10 +1139,7 @@
     return { totalPerimeterMm: totalEdges * MODULE_MM, segments };
   }
 
-  // 초기 시작 시 자동 맞춤 렌더링
-  window.onload = function() {
-    resizeCanvas(true);
-  };
+  resizeCanvas();
 </script>
 </body>
 </html>
